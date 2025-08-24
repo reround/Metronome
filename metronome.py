@@ -102,9 +102,10 @@ class Metronome(QObject):
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowIcon(QIcon("assets/svg/metronome.svg"))
-
         self.setupUi(self)  # 初始化 UI
+        self.setWindowIcon(QIcon("assets/svg/metronome.svg"))
+        self.setFixedSize(self.size())  # 锁死/禁止放大缩小
+
         self.metronome = Metronome()
 
         self.dial_range = (30, 240)
