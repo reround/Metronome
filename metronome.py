@@ -44,6 +44,7 @@ class Metronome(QObject):
         self.beat_num: int = 4  # 拍数
         self.current_beat: int = 0  # 当前拍子数
         self.CLICK_HZ = 800  # 拍子声音频率
+        self.volume = 0.5  # 音量
         self.FS = 44_100  # 采样率
         self.BPM = 100  # 每分钟拍子数
         self.BEAT_S = 60 / self.BPM  # 每拍持续时间
@@ -72,7 +73,9 @@ class Metronome(QObject):
             pos_in_beat = self.t % self.BEAT_N
             # print(f"pos_in_beat:{pos_in_beat}")
             if pos_in_beat < self.CLICK_N:
-                buf[i] = 0.2 * np.sin(2 * np.pi * self.CLICK_HZ * pos_in_beat / self.FS)
+                buf[i] = self.volume * np.sin(
+                    2 * np.pi * self.CLICK_HZ * pos_in_beat / self.FS
+                )
             self.t += 1
             if pos_in_beat == 0:
                 self.sig_beat.emit()
@@ -113,7 +116,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.dial.setSingleStep(1)  # 步进 5
         self.dial.setNotchesVisible(True)  # 显示刻度
         self.dial.setNotchTarget(15.0)  # 刻度疏密
-
+        self.horizontalSlider_volume.setValue(int(self.metronome.volume * 100))
         self.metronome.sig_beat.connect(self.beep)
 
     def beep(self):
@@ -146,6 +149,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         except ValueError:
             int_value = self.dial_range[0]
         pass
+
+    @pyqtSlot(int)
+    def on_horizontalSlider_volume_valueChanged(self, value: int):
+        self.metronome.volume = value / 100
 
     @pyqtSlot()
     def on_pushButton_start_clicked(self):
