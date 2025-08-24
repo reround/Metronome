@@ -11,8 +11,19 @@ import numpy as np
 import sounddevice as sd
 
 from PyQt6.QtWidgets import QApplication, QMainWindow
-from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal
-from PyQt6.QtCore import QEvent
+from PyQt6.QtCore import (
+    Qt,
+    pyqtSlot,
+    pyqtSignal,
+    QObject,
+    QThread,
+    QMutex,
+    QWaitCondition,
+    QMutexLocker,
+    QEvent,
+    QTimer,
+)
+from PyQt6.QtGui import QIcon
 
 from Metronome_mainWindow import Ui_MainWindow
 
@@ -22,8 +33,12 @@ class MetroState(Enum):
     RUNNING = auto()  # 运行中
 
 
-class Metronome:
-    def __init__(self):
+class Metronome(QObject):
+    sig_beat = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
         self.t = 0  # 已播放样本计数
         self.time_signature = "4/4"  # 拍号（如 4/4）
         self.beat_num: int = 4  # 拍数
@@ -53,7 +68,6 @@ class Metronome:
         # 生成 frames 长度的缓冲区
         buf = np.zeros(frames, dtype="float32")
         for i in range(frames):
-
             # 一个周期 BEAT_N 个样本
             pos_in_beat = self.t % self.BEAT_N
             # print(f"pos_in_beat:{pos_in_beat}")
@@ -61,8 +75,10 @@ class Metronome:
                 buf[i] = 0.2 * np.sin(2 * np.pi * self.CLICK_HZ * pos_in_beat / self.FS)
             self.t += 1
             if pos_in_beat == 0:
+                self.sig_beat.emit()
+                # print(f"current_beat:{self.current_beat}")
                 self.current_beat += 1
-                # # 首拍高音
+                # 首拍高音
                 if self.current_beat % self.beat_num == 1:
                     self.CLICK_HZ = 800
                 else:
@@ -86,6 +102,8 @@ class Metronome:
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
+        self.setWindowIcon(QIcon("assets/svg/metronome.svg"))
+
         self.setupUi(self)  # 初始化 UI
         self.metronome = Metronome()
 
@@ -95,10 +113,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.dial.setNotchesVisible(True)  # 显示刻度
         self.dial.setNotchTarget(15.0)  # 刻度疏密
 
+        self.metronome.sig_beat.connect(self.beep)
+
+    def beep(self):
+        """
+        处理拍子响应
+        """
+        # 这里可以播放“嘀”声、闪烁灯、打印字符等
+        # print("d", end="", flush=True)
+        self.dial.setStyleSheet("QDial { background: #a5d6a7; }")
+        # 100 ms 后自动变白，不阻塞
+        QTimer.singleShot(100, lambda: self.dial.setStyleSheet(""))
+
     @pyqtSlot(int)
     def on_dial_valueChanged(self, value: int):
         """
-        实时变更频率的地方
+        实时变更频率的地方, 以dial数值改变为标准
         """
         self.lineEdit_bmp.setText(str(value))
         self.metronome.update_bmp(self.dial.value())
@@ -136,7 +166,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.metronome.beat_num = 4
 
     def closeEvent(self, event: QEvent) -> None:
-        self.metronome.state = MetroState.PAUSE
+        self.metronome.state = MetroState.PAUSE  # 关闭线程
 
 
 if __name__ == "__main__":
